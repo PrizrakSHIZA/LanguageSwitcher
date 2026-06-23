@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.3.32901.215
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LanguageSwitcher", "LanguageSwitcher\LanguageSwitcher.csproj", "{6DB740E5-F37C-4094-A4AE-1E1242D7FF0D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6DB740E5-F37C-4094-A4AE-1E1242D7FF0D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6DB740E5-F37C-4094-A4AE-1E1242D7FF0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6DB740E5-F37C-4094-A4AE-1E1242D7FF0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6DB740E5-F37C-4094-A4AE-1E1242D7FF0D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {076E3D46-C579-4720-995A-C6833947E9F5}
+	EndGlobalSection
+EndGlobal
