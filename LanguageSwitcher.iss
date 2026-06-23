@@ -1,6 +1,6 @@
 [Setup]
 AppName=Language Switcher
-AppVersion=1.0.0
+AppVersion=1.0.1
 DefaultDirName={autopf}\Language Switcher
 DefaultGroupName=Language Switcher
 OutputDir=installer
