@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
+using System.Security.Principal;
 using System.Windows.Forms;
 
 namespace LanguageSwitcher
@@ -37,6 +39,8 @@ namespace LanguageSwitcher
 
             trayMenu = new ContextMenuStrip();
             trayMenu.Items.Add("Settings", null, OnSettingsClick);
+            var restartAsAdminItem = trayMenu.Items.Add("Restart as administrator", null, OnRestartAsAdministratorClick);
+            restartAsAdminItem.Enabled = !IsRunningAsAdministrator();
             trayMenu.Items.Add("-");
             trayMenu.Items.Add("Exit", null, OnExitClick);
 
@@ -70,20 +74,20 @@ namespace LanguageSwitcher
         {
             if (e.IsCycle)
             {
-                SwitchToNextEnabledLanguage();
+                e.Handled = SwitchToNextEnabledLanguage();
             }
             else
             {
-                layoutService.Activate(e.LayoutId);
+                e.Handled = layoutService.Activate(e.LayoutId);
             }
         }
 
-        private void SwitchToNextEnabledLanguage()
+        private bool SwitchToNextEnabledLanguage()
         {
             List<LanguageSetting> enabledLanguages = settings.Languages.Where(l => l.Enabled).ToList();
             if (enabledLanguages.Count == 0)
             {
-                return;
+                return false;
             }
 
             activeLanguageIndex++;
@@ -92,7 +96,7 @@ namespace LanguageSwitcher
                 activeLanguageIndex = 0;
             }
 
-            layoutService.Activate(enabledLanguages[activeLanguageIndex].LayoutId);
+            return layoutService.Activate(enabledLanguages[activeLanguageIndex].LayoutId);
         }
 
         private void OnSettingsClick(object sender, EventArgs e)
@@ -113,6 +117,32 @@ namespace LanguageSwitcher
         private void OnSettingsSaved(object sender, EventArgs e)
         {
             SaveSettings();
+        }
+
+        private void OnRestartAsAdministratorClick(object sender, EventArgs e)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = Application.ExecutablePath,
+                    UseShellExecute = true,
+                    Verb = "runas"
+                });
+
+                OnExitClick(sender, e);
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                // UAC was cancelled or elevation is unavailable.
+            }
+        }
+
+        private static bool IsRunningAsAdministrator()
+        {
+            WindowsIdentity identity = WindowsIdentity.GetCurrent();
+            WindowsPrincipal principal = new WindowsPrincipal(identity);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
         }
 
         private void OnExitClick(object sender, EventArgs e)

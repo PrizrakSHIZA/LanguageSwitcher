@@ -11,6 +11,7 @@ namespace LanguageSwitcher
     {
         public string LayoutId { get; private set; }
         public bool IsCycle { get; private set; }
+        public bool Handled { get; set; }
 
         public HotkeyPressedEventArgs(bool isCycle, string layoutId)
         {
@@ -101,7 +102,10 @@ namespace LanguageSwitcher
                             OnHotkeyPressed(match);
                         }
 
-                        return (IntPtr)1;
+                        if (match.Handled)
+                        {
+                            return (IntPtr)1;
+                        }
                     }
                 }
                 else if (message == WM_KEYUP || message == WM_SYSKEYUP)
