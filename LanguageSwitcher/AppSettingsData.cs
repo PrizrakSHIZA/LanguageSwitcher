@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Windows.Forms;
 using System.Xml.Serialization;
 
 namespace LanguageSwitcher
@@ -85,6 +84,7 @@ namespace LanguageSwitcher
             var installed = installedLayouts.ToList();
             var installedIds = new HashSet<string>(installed.Select(l => l.LayoutId), StringComparer.OrdinalIgnoreCase);
 
+            MigrateLegacyLayoutIds(data, installedIds);
             data.Languages.RemoveAll(l => !installedIds.Contains(l.LayoutId));
 
             foreach (var layout in installed)
@@ -103,6 +103,50 @@ namespace LanguageSwitcher
                 else
                 {
                     language.DisplayName = layout.DisplayName;
+                }
+            }
+        }
+
+        private static void MigrateLegacyLayoutIds(AppSettingsData data, HashSet<string> installedIds)
+        {
+            foreach (LanguageSetting language in data.Languages)
+            {
+                if (string.IsNullOrWhiteSpace(language.LayoutId) || installedIds.Contains(language.LayoutId))
+                {
+                    continue;
+                }
+
+                string languageId = language.LayoutId.Length >= 4
+                    ? language.LayoutId.Substring(language.LayoutId.Length - 4)
+                    : language.LayoutId;
+
+                if (installedIds.Contains(languageId))
+                {
+                    language.LayoutId = languageId;
+                }
+            }
+
+            var duplicates = data.Languages
+                .GroupBy(l => l.LayoutId, StringComparer.OrdinalIgnoreCase)
+                .Where(g => g.Count() > 1)
+                .ToList();
+
+            foreach (var duplicateGroup in duplicates)
+            {
+                LanguageSetting primary = duplicateGroup.First();
+                foreach (LanguageSetting duplicate in duplicateGroup.Skip(1).ToList())
+                {
+                    if (!duplicate.Enabled)
+                    {
+                        primary.Enabled = false;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(primary.Hotkey) && !string.IsNullOrWhiteSpace(duplicate.Hotkey))
+                    {
+                        primary.Hotkey = duplicate.Hotkey;
+                    }
+
+                    data.Languages.Remove(duplicate);
                 }
             }
         }

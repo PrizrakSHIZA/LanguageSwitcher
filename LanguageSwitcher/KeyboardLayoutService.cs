@@ -1,4 +1,3 @@
-using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -11,6 +10,7 @@ namespace LanguageSwitcher
     public sealed class KeyboardLayoutInfo
     {
         public string LayoutId { get; set; }
+        public string KeyboardLayoutId { get; set; }
         public IntPtr Handle { get; set; }
         public string DisplayName { get; set; }
 
@@ -22,7 +22,6 @@ namespace LanguageSwitcher
 
     public sealed class KeyboardLayoutService
     {
-        private const uint KLF_ACTIVATE = 0x00000001;
         private const int WM_INPUTLANGCHANGEREQUEST = 0x0050;
 
         [DllImport("user32.dll", SetLastError = true)]
@@ -39,9 +38,6 @@ namespace LanguageSwitcher
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        private static extern IntPtr LoadKeyboardLayout(string pwszKLID, uint flags);
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
@@ -65,7 +61,6 @@ namespace LanguageSwitcher
                     .Where(l => !string.IsNullOrWhiteSpace(l.LayoutId))
                     .GroupBy(l => l.LayoutId, StringComparer.OrdinalIgnoreCase)
                     .Select(g => g.First())
-                    .OrderBy(l => l.DisplayName)
                     .ToList();
             }
             finally
@@ -84,7 +79,7 @@ namespace LanguageSwitcher
                 return false;
             }
 
-            IntPtr handle = LoadKeyboardLayout(layoutId, KLF_ACTIVATE);
+            IntPtr handle = FindHandleByLanguageId(layoutId);
             if (handle == IntPtr.Zero)
             {
                 return false;
@@ -105,23 +100,49 @@ namespace LanguageSwitcher
             ActivateKeyboardLayout(handle, 0);
 
             var layoutName = new StringBuilder(9);
-            string layoutId = GetKeyboardLayoutName(layoutName) ? layoutName.ToString() : null;
+            string keyboardLayoutId = GetKeyboardLayoutName(layoutName) ? layoutName.ToString() : null;
+            string languageId = GetLanguageId(handle);
             return new KeyboardLayoutInfo
             {
                 Handle = handle,
-                LayoutId = layoutId,
-                DisplayName = GetDisplayName(layoutId)
+                LayoutId = languageId,
+                KeyboardLayoutId = keyboardLayoutId,
+                DisplayName = GetDisplayName(languageId)
             };
+        }
+
+        private IntPtr FindHandleByLanguageId(string languageId)
+        {
+            int count = (int)GetKeyboardLayoutList(0, null);
+            if (count <= 0)
+            {
+                return IntPtr.Zero;
+            }
+
+            var handles = new IntPtr[count];
+            GetKeyboardLayoutList(count, handles);
+
+            foreach (IntPtr handle in handles)
+            {
+                if (string.Equals(GetLanguageId(handle), languageId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return handle;
+                }
+            }
+
+            return IntPtr.Zero;
+        }
+
+        private string GetLanguageId(IntPtr handle)
+        {
+            return ((ushort)((long)handle & 0xFFFF)).ToString("X4");
         }
 
         private string GetDisplayName(string layoutId)
         {
-            string layoutName = ReadRegistryValue(@"SYSTEM\CurrentControlSet\Control\Keyboard Layouts\" + layoutId, "Layout Text");
-            string localizedName = ReadRegistryValue(@"SYSTEM\CurrentControlSet\Control\Keyboard Layouts\" + layoutId, "Layout Display Name");
-
             int languageId;
             string cultureName = null;
-            if (int.TryParse(layoutId.Substring(layoutId.Length - 4), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out languageId))
+            if (int.TryParse(layoutId, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out languageId))
             {
                 try
                 {
@@ -133,30 +154,12 @@ namespace LanguageSwitcher
                 }
             }
 
-            if (!string.IsNullOrWhiteSpace(cultureName) && !string.IsNullOrWhiteSpace(layoutName))
+            if (!string.IsNullOrWhiteSpace(cultureName))
             {
-                return cultureName + " - " + layoutName + " (" + layoutId + ")";
+                return cultureName + " (" + layoutId + ")";
             }
 
-            if (!string.IsNullOrWhiteSpace(layoutName))
-            {
-                return layoutName + " (" + layoutId + ")";
-            }
-
-            if (!string.IsNullOrWhiteSpace(localizedName))
-            {
-                return localizedName + " (" + layoutId + ")";
-            }
-
-            return "Layout " + layoutId;
-        }
-
-        private string ReadRegistryValue(string path, string valueName)
-        {
-            using (RegistryKey key = Registry.LocalMachine.OpenSubKey(path))
-            {
-                return key == null ? null : key.GetValue(valueName) as string;
-            }
+            return "Language " + layoutId;
         }
     }
 }
