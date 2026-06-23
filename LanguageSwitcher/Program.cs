@@ -42,7 +42,7 @@ namespace LanguageSwitcher
 
             trayIcon = new NotifyIcon
             {
-                Icon = SystemIcons.Application,
+                Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application,
                 ContextMenuStrip = trayMenu,
                 Text = "Language Switcher",
                 Visible = true
