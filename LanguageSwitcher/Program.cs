@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Security.Principal;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace LanguageSwitcher
@@ -28,12 +29,15 @@ namespace LanguageSwitcher
         private AppSettingsData settings;
         private SettingsForm settingsForm;
         private int activeLanguageIndex = -1;
+        private string pendingFallbackLayoutId;
+        private int pendingFallbackLanguageIndex = -1;
 
         public TrayApplicationContext()
         {
             layoutService = new KeyboardLayoutService();
             hotkeyManager = new GlobalHotkeyManager();
             hotkeyManager.HotkeyPressed += OnHotkeyPressed;
+            hotkeyManager.HotkeyReleased += OnHotkeyReleased;
 
             LoadSettings();
 
@@ -78,7 +82,7 @@ namespace LanguageSwitcher
             }
             else
             {
-                e.Handled = layoutService.Activate(e.LayoutId);
+                e.Handled = ActivateLanguage(e.LayoutId);
             }
         }
 
@@ -90,13 +94,132 @@ namespace LanguageSwitcher
                 return false;
             }
 
-            activeLanguageIndex++;
-            if (activeLanguageIndex >= enabledLanguages.Count)
+            int currentLanguageIndex = GetCurrentEnabledLanguageIndex(enabledLanguages);
+            int nextLanguageIndex = currentLanguageIndex >= 0
+                ? currentLanguageIndex + 1
+                : activeLanguageIndex + 1;
+
+            if (nextLanguageIndex >= enabledLanguages.Count)
             {
-                activeLanguageIndex = 0;
+                nextLanguageIndex = 0;
             }
 
-            return layoutService.Activate(enabledLanguages[activeLanguageIndex].LayoutId);
+            if (!ActivateLanguage(enabledLanguages[nextLanguageIndex].LayoutId, nextLanguageIndex))
+            {
+                return false;
+            }
+
+            activeLanguageIndex = nextLanguageIndex;
+            return true;
+        }
+
+        private bool ActivateLanguage(string layoutId, int languageIndex)
+        {
+            if (layoutService.Activate(layoutId))
+            {
+                return true;
+            }
+
+            if (layoutService.GetActiveForegroundLanguageId() == null)
+            {
+                return false;
+            }
+
+            pendingFallbackLayoutId = layoutId;
+            pendingFallbackLanguageIndex = languageIndex;
+            return true;
+        }
+
+        private bool ActivateLanguage(string layoutId)
+        {
+            return ActivateLanguage(layoutId, -1);
+        }
+
+        private void OnHotkeyReleased(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(pendingFallbackLayoutId))
+            {
+                return;
+            }
+
+            string layoutId = pendingFallbackLayoutId;
+            int languageIndex = pendingFallbackLanguageIndex;
+            pendingFallbackLayoutId = null;
+            pendingFallbackLanguageIndex = -1;
+
+            BeginInvokeFallback(layoutId, languageIndex);
+        }
+
+        private void BeginInvokeFallback(string layoutId, int languageIndex)
+        {
+            var timer = new System.Windows.Forms.Timer();
+            timer.Interval = 40;
+            timer.Tick += delegate
+            {
+                timer.Stop();
+                timer.Dispose();
+
+                if (ActivateLanguageUsingWindowsFallback(layoutId) && languageIndex >= 0)
+                {
+                    activeLanguageIndex = languageIndex;
+                }
+            };
+            timer.Start();
+        }
+
+        private bool ActivateLanguageUsingWindowsFallback(string layoutId)
+        {
+            Hotkey fallbackHotkey = Hotkey.Parse(settings.WindowsFallbackHotkey);
+            if (fallbackHotkey.IsEmpty)
+            {
+                return false;
+            }
+
+            int maxAttempts = Math.Max(settings.Languages.Count + 1, 4);
+            for (int i = 0; i < maxAttempts; i++)
+            {
+                string currentLanguageId = layoutService.GetActiveForegroundLanguageId();
+                if (string.Equals(currentLanguageId, layoutId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (currentLanguageId == null)
+                {
+                    return false;
+                }
+
+                if (!SystemHotkeySender.Send(fallbackHotkey))
+                {
+                    return false;
+                }
+
+                Thread.Sleep(40);
+            }
+
+            return string.Equals(
+                layoutService.GetActiveForegroundLanguageId(),
+                layoutId,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private int GetCurrentEnabledLanguageIndex(List<LanguageSetting> enabledLanguages)
+        {
+            string currentLanguageId = layoutService.GetActiveForegroundLanguageId();
+            if (string.IsNullOrWhiteSpace(currentLanguageId))
+            {
+                return -1;
+            }
+
+            for (int i = 0; i < enabledLanguages.Count; i++)
+            {
+                if (string.Equals(enabledLanguages[i].LayoutId, currentLanguageId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
         }
 
         private void OnSettingsClick(object sender, EventArgs e)

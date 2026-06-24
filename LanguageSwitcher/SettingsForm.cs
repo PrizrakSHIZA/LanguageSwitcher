@@ -21,6 +21,7 @@ namespace LanguageSwitcher
             workingSettings = Clone(settings);
 
             cycleHotkeyBox.SetHotkey(Hotkey.Parse(workingSettings.CycleHotkey));
+            fallbackHotkeyBox.SetHotkey(Hotkey.Parse(workingSettings.WindowsFallbackHotkey));
             chkRunAtStartup.Checked = workingSettings.RunAtStartup;
 
             WireEvents();
@@ -180,9 +181,11 @@ namespace LanguageSwitcher
             CommitSelectedLanguageHotkey();
 
             workingSettings.CycleHotkey = cycleHotkeyBox.Hotkey.ToString();
+            workingSettings.WindowsFallbackHotkey = fallbackHotkeyBox.Hotkey.ToString();
             workingSettings.RunAtStartup = chkRunAtStartup.Checked;
 
             originalSettings.CycleHotkey = workingSettings.CycleHotkey;
+            originalSettings.WindowsFallbackHotkey = workingSettings.WindowsFallbackHotkey;
             originalSettings.RunAtStartup = workingSettings.RunAtStartup;
             originalSettings.Languages.Clear();
             originalSettings.Languages.AddRange(workingSettings.Languages.Select(CloneLanguage));
@@ -225,6 +228,7 @@ namespace LanguageSwitcher
             return new AppSettingsData
             {
                 CycleHotkey = source.CycleHotkey,
+                WindowsFallbackHotkey = source.WindowsFallbackHotkey,
                 RunAtStartup = source.RunAtStartup,
                 Languages = source.Languages.Select(CloneLanguage).ToList()
             };

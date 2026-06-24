@@ -27,6 +27,7 @@ namespace LanguageSwitcher
         private const int WM_KEYUP = 0x0101;
         private const int WM_SYSKEYDOWN = 0x0104;
         private const int WM_SYSKEYUP = 0x0105;
+        private const int LLKHF_INJECTED = 0x00000010;
 
         private readonly LowLevelKeyboardProc proc;
         private readonly HashSet<Keys> pressedKeys;
@@ -36,6 +37,7 @@ namespace LanguageSwitcher
         private string activeSignature;
 
         public event EventHandler<HotkeyPressedEventArgs> HotkeyPressed;
+        public event EventHandler HotkeyReleased;
 
         public GlobalHotkeyManager()
         {
@@ -87,7 +89,13 @@ namespace LanguageSwitcher
             if (nCode >= 0)
             {
                 int message = wParam.ToInt32();
-                Keys key = NormalizeKey((Keys)Marshal.ReadInt32(lParam));
+                var hookInfo = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
+                if ((hookInfo.flags & LLKHF_INJECTED) == LLKHF_INJECTED)
+                {
+                    return CallNextHookEx(hookId, nCode, wParam, lParam);
+                }
+
+                Keys key = NormalizeKey((Keys)hookInfo.vkCode);
 
                 if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
                 {
@@ -111,7 +119,11 @@ namespace LanguageSwitcher
                 else if (message == WM_KEYUP || message == WM_SYSKEYUP)
                 {
                     pressedKeys.Remove(key);
-                    activeSignature = null;
+                    if (pressedKeys.Count == 0)
+                    {
+                        activeSignature = null;
+                        OnHotkeyReleased();
+                    }
                 }
             }
 
@@ -175,6 +187,15 @@ namespace LanguageSwitcher
             }
         }
 
+        private void OnHotkeyReleased()
+        {
+            var handler = HotkeyReleased;
+            if (handler != null)
+            {
+                handler(this, EventArgs.Empty);
+            }
+        }
+
         private static Keys NormalizeKey(Keys key)
         {
             if (key == Keys.LControlKey || key == Keys.RControlKey || key == Keys.ControlKey) return Keys.ControlKey;
@@ -184,6 +205,16 @@ namespace LanguageSwitcher
         }
 
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KBDLLHOOKSTRUCT
+        {
+            public uint vkCode;
+            public uint scanCode;
+            public int flags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
 
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);

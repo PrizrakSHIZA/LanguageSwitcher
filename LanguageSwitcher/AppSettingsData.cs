@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Microsoft.Win32;
 using System.Xml.Serialization;
 
 namespace LanguageSwitcher
@@ -11,6 +12,7 @@ namespace LanguageSwitcher
     {
         public List<LanguageSetting> Languages { get; set; }
         public string CycleHotkey { get; set; }
+        public string WindowsFallbackHotkey { get; set; }
         public bool RunAtStartup { get; set; }
 
         public AppSettingsData()
@@ -64,6 +66,11 @@ namespace LanguageSwitcher
             if (data == null)
             {
                 data = new AppSettingsData();
+                data.WindowsFallbackHotkey = DetectWindowsLanguageHotkey();
+            }
+            else if (string.IsNullOrWhiteSpace(data.WindowsFallbackHotkey))
+            {
+                data.WindowsFallbackHotkey = DetectWindowsLanguageHotkey();
             }
 
             MergeInstalledLayouts(data, installedLayouts);
@@ -147,6 +154,25 @@ namespace LanguageSwitcher
                     }
 
                     data.Languages.Remove(duplicate);
+                }
+            }
+        }
+
+        private static string DetectWindowsLanguageHotkey()
+        {
+            using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Keyboard Layout\Toggle"))
+            {
+                string value = key == null ? null : key.GetValue("Language Hotkey") as string;
+                switch (value)
+                {
+                    case "1":
+                        return "Alt+Shift";
+                    case "2":
+                        return "Ctrl+Shift";
+                    case "4":
+                        return "Oemtilde";
+                    default:
+                        return "Ctrl+Shift";
                 }
             }
         }

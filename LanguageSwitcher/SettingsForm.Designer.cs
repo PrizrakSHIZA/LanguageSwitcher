@@ -26,8 +26,10 @@ namespace LanguageSwitcher
             this.lblActive = new System.Windows.Forms.Label();
             this.lblDisabled = new System.Windows.Forms.Label();
             this.lblCycleHotkey = new System.Windows.Forms.Label();
+            this.lblFallbackHotkey = new System.Windows.Forms.Label();
             this.lblLanguageHotkey = new System.Windows.Forms.Label();
             this.cycleHotkeyBox = new LanguageSwitcher.HotkeyTextBox();
+            this.fallbackHotkeyBox = new LanguageSwitcher.HotkeyTextBox();
             this.languageHotkeyBox = new LanguageSwitcher.HotkeyTextBox();
             this.btnClearLanguageHotkey = new System.Windows.Forms.Button();
             this.chkRunAtStartup = new System.Windows.Forms.CheckBox();
@@ -135,11 +137,20 @@ namespace LanguageSwitcher
             // lblLanguageHotkey
             // 
             this.lblLanguageHotkey.AutoSize = true;
-            this.lblLanguageHotkey.Location = new System.Drawing.Point(241, 306);
+            this.lblLanguageHotkey.Location = new System.Drawing.Point(470, 306);
             this.lblLanguageHotkey.Name = "lblLanguageHotkey";
             this.lblLanguageHotkey.Size = new System.Drawing.Size(111, 13);
-            this.lblLanguageHotkey.TabIndex = 10;
+            this.lblLanguageHotkey.TabIndex = 12;
             this.lblLanguageHotkey.Text = "Selected language";
+            // 
+            // lblFallbackHotkey
+            // 
+            this.lblFallbackHotkey.AutoSize = true;
+            this.lblFallbackHotkey.Location = new System.Drawing.Point(241, 306);
+            this.lblFallbackHotkey.Name = "lblFallbackHotkey";
+            this.lblFallbackHotkey.Size = new System.Drawing.Size(124, 13);
+            this.lblFallbackHotkey.TabIndex = 10;
+            this.lblFallbackHotkey.Text = "Windows fallback hotkey";
             // 
             // cycleHotkeyBox
             // 
@@ -148,19 +159,26 @@ namespace LanguageSwitcher
             this.cycleHotkeyBox.Size = new System.Drawing.Size(190, 20);
             this.cycleHotkeyBox.TabIndex = 9;
             // 
+            // fallbackHotkeyBox
+            // 
+            this.fallbackHotkeyBox.Location = new System.Drawing.Point(244, 325);
+            this.fallbackHotkeyBox.Name = "fallbackHotkeyBox";
+            this.fallbackHotkeyBox.Size = new System.Drawing.Size(190, 20);
+            this.fallbackHotkeyBox.TabIndex = 11;
+            // 
             // languageHotkeyBox
             // 
-            this.languageHotkeyBox.Location = new System.Drawing.Point(244, 325);
+            this.languageHotkeyBox.Location = new System.Drawing.Point(473, 325);
             this.languageHotkeyBox.Name = "languageHotkeyBox";
-            this.languageHotkeyBox.Size = new System.Drawing.Size(190, 20);
-            this.languageHotkeyBox.TabIndex = 11;
+            this.languageHotkeyBox.Size = new System.Drawing.Size(135, 20);
+            this.languageHotkeyBox.TabIndex = 13;
             // 
             // btnClearLanguageHotkey
             // 
-            this.btnClearLanguageHotkey.Location = new System.Drawing.Point(440, 322);
+            this.btnClearLanguageHotkey.Location = new System.Drawing.Point(614, 322);
             this.btnClearLanguageHotkey.Name = "btnClearLanguageHotkey";
-            this.btnClearLanguageHotkey.Size = new System.Drawing.Size(75, 27);
-            this.btnClearLanguageHotkey.TabIndex = 12;
+            this.btnClearLanguageHotkey.Size = new System.Drawing.Size(69, 27);
+            this.btnClearLanguageHotkey.TabIndex = 14;
             this.btnClearLanguageHotkey.Text = "Clear";
             this.btnClearLanguageHotkey.UseVisualStyleBackColor = true;
             // 
@@ -170,7 +188,7 @@ namespace LanguageSwitcher
             this.chkRunAtStartup.Location = new System.Drawing.Point(15, 365);
             this.chkRunAtStartup.Name = "chkRunAtStartup";
             this.chkRunAtStartup.Size = new System.Drawing.Size(94, 17);
-            this.chkRunAtStartup.TabIndex = 13;
+            this.chkRunAtStartup.TabIndex = 15;
             this.chkRunAtStartup.Text = "Run at startup";
             this.chkRunAtStartup.UseVisualStyleBackColor = true;
             // 
@@ -182,8 +200,10 @@ namespace LanguageSwitcher
             this.Controls.Add(this.chkRunAtStartup);
             this.Controls.Add(this.btnClearLanguageHotkey);
             this.Controls.Add(this.languageHotkeyBox);
+            this.Controls.Add(this.fallbackHotkeyBox);
             this.Controls.Add(this.cycleHotkeyBox);
             this.Controls.Add(this.lblLanguageHotkey);
+            this.Controls.Add(this.lblFallbackHotkey);
             this.Controls.Add(this.lblCycleHotkey);
             this.Controls.Add(this.lblDisabled);
             this.Controls.Add(this.lblActive);
@@ -216,8 +236,10 @@ namespace LanguageSwitcher
         private System.Windows.Forms.Label lblActive;
         private System.Windows.Forms.Label lblDisabled;
         private System.Windows.Forms.Label lblCycleHotkey;
+        private System.Windows.Forms.Label lblFallbackHotkey;
         private System.Windows.Forms.Label lblLanguageHotkey;
         private HotkeyTextBox cycleHotkeyBox;
+        private HotkeyTextBox fallbackHotkeyBox;
         private HotkeyTextBox languageHotkeyBox;
         private System.Windows.Forms.Button btnClearLanguageHotkey;
         private System.Windows.Forms.CheckBox chkRunAtStartup;

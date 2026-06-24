@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 
 namespace LanguageSwitcher
 {
@@ -40,9 +41,6 @@ namespace LanguageSwitcher
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
 
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
-
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern IntPtr SendMessageTimeout(
             IntPtr hWnd,
@@ -64,6 +62,9 @@ namespace LanguageSwitcher
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetParent(IntPtr hWnd);
 
         public List<KeyboardLayoutInfo> GetInstalledLayouts()
         {
@@ -122,14 +123,39 @@ namespace LanguageSwitcher
                 focusWindow = foregroundWindow;
             }
 
-            bool activated = ActivateForForegroundThread(handle, foregroundThreadId);
-            bool messageSent = RequestLanguageChange(focusWindow, handle);
-            if (focusWindow != foregroundWindow)
+            ActivateForForegroundThread(handle, foregroundThreadId);
+            RequestLanguageChangeChain(focusWindow, handle);
+            RequestLanguageChange(foregroundWindow, handle);
+
+            Thread.Sleep(20);
+            return IsThreadLanguageActive(foregroundThreadId, layoutId);
+        }
+
+        public string GetActiveForegroundLanguageId()
+        {
+            IntPtr foregroundWindow = GetForegroundWindow();
+            if (foregroundWindow == IntPtr.Zero)
             {
-                messageSent = RequestLanguageChange(foregroundWindow, handle) || messageSent;
+                return null;
             }
 
-            return activated || messageSent || IsThreadLanguageActive(foregroundThreadId, layoutId);
+            uint processId;
+            uint foregroundThreadId = GetWindowThreadProcessId(foregroundWindow, out processId);
+            IntPtr currentLayout = GetKeyboardLayout(foregroundThreadId);
+            return currentLayout == IntPtr.Zero ? null : GetLanguageId(currentLayout);
+        }
+
+        public bool HasFocusedForegroundControl()
+        {
+            IntPtr foregroundWindow = GetForegroundWindow();
+            if (foregroundWindow == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            uint processId;
+            uint foregroundThreadId = GetWindowThreadProcessId(foregroundWindow, out processId);
+            return GetFocusedWindow(foregroundThreadId) != IntPtr.Zero;
         }
 
         private KeyboardLayoutInfo CreateInfo(IntPtr handle)
@@ -238,6 +264,16 @@ namespace LanguageSwitcher
                 SMTO_ABORTIFHUNG,
                 100,
                 out result) != IntPtr.Zero;
+        }
+
+        private void RequestLanguageChangeChain(IntPtr window, IntPtr handle)
+        {
+            IntPtr current = window;
+            for (int i = 0; i < 5 && current != IntPtr.Zero; i++)
+            {
+                RequestLanguageChange(current, handle);
+                current = GetParent(current);
+            }
         }
 
         private bool IsThreadLanguageActive(uint threadId, string layoutId)
