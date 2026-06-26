@@ -11,12 +11,14 @@ namespace LanguageSwitcher
     {
         public string LayoutId { get; private set; }
         public bool IsCycle { get; private set; }
+        public bool IsModifierOnly { get; private set; }
         public bool Handled { get; set; }
 
-        public HotkeyPressedEventArgs(bool isCycle, string layoutId)
+        public HotkeyPressedEventArgs(bool isCycle, string layoutId, bool isModifierOnly)
         {
             IsCycle = isCycle;
             LayoutId = layoutId;
+            IsModifierOnly = isModifierOnly;
         }
     }
 
@@ -35,8 +37,11 @@ namespace LanguageSwitcher
         private Hotkey cycleHotkey;
         private List<Tuple<Hotkey, string>> languageHotkeys;
         private string activeSignature;
+        private HotkeyPressedEventArgs pendingModifierOnlyHotkey;
+        private bool pendingModifierOnlyCancelled;
 
         public event EventHandler<HotkeyPressedEventArgs> HotkeyPressed;
+        public event EventHandler<HotkeyPressedEventArgs> ModifierOnlyHotkeyArmed;
         public event EventHandler HotkeyReleased;
 
         public GlobalHotkeyManager()
@@ -100,9 +105,27 @@ namespace LanguageSwitcher
                 if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
                 {
                     pressedKeys.Add(key);
+
+                    if (pendingModifierOnlyHotkey != null && IsPendingModifierOnlyCancelledBy(key))
+                    {
+                        pendingModifierOnlyCancelled = true;
+                    }
+
                     var match = FindMatch();
                     if (match != null)
                     {
+                        if (match.IsModifierOnly)
+                        {
+                            if (pendingModifierOnlyHotkey == null)
+                            {
+                                pendingModifierOnlyHotkey = match;
+                                pendingModifierOnlyCancelled = false;
+                                OnModifierOnlyHotkeyArmed(match);
+                            }
+
+                            return CallNextHookEx(hookId, nCode, wParam, lParam);
+                        }
+
                         string signature = GetPressedSignature();
                         if (!string.Equals(activeSignature, signature, StringComparison.Ordinal))
                         {
@@ -121,8 +144,20 @@ namespace LanguageSwitcher
                     pressedKeys.Remove(key);
                     if (pressedKeys.Count == 0)
                     {
+                        HotkeyPressedEventArgs modifierOnlyHotkeyToFire =
+                            pendingModifierOnlyHotkey != null && !pendingModifierOnlyCancelled
+                                ? pendingModifierOnlyHotkey
+                                : null;
+
                         activeSignature = null;
+                        pendingModifierOnlyHotkey = null;
+                        pendingModifierOnlyCancelled = false;
                         OnHotkeyReleased();
+
+                        if (modifierOnlyHotkeyToFire != null)
+                        {
+                            FireModifierOnlyHotkeyAfterRelease(modifierOnlyHotkeyToFire);
+                        }
                     }
                 }
             }
@@ -134,14 +169,14 @@ namespace LanguageSwitcher
         {
             if (Matches(cycleHotkey))
             {
-                return new HotkeyPressedEventArgs(true, null);
+                return new HotkeyPressedEventArgs(true, null, cycleHotkey.Key == Keys.None);
             }
 
             foreach (var item in languageHotkeys)
             {
                 if (Matches(item.Item1))
                 {
-                    return new HotkeyPressedEventArgs(false, item.Item2);
+                    return new HotkeyPressedEventArgs(false, item.Item2, item.Item1.Key == Keys.None);
                 }
             }
 
@@ -161,6 +196,49 @@ namespace LanguageSwitcher
             }
 
             return hotkey.Key == Keys.None || pressedKeys.Contains(NormalizeKey(hotkey.Key));
+        }
+
+        private void FireModifierOnlyHotkeyAfterRelease(HotkeyPressedEventArgs args)
+        {
+            var timer = new Timer();
+            timer.Interval = 30;
+            timer.Tick += delegate
+            {
+                timer.Stop();
+                timer.Dispose();
+                OnHotkeyPressed(args);
+            };
+            timer.Start();
+        }
+
+        private bool IsPendingModifierOnlyCancelledBy(Keys key)
+        {
+            if (!IsModifierKey(key))
+            {
+                return true;
+            }
+
+            HotkeyModifiers pressedModifier = GetModifierForKey(key);
+            Hotkey pendingHotkey = pendingModifierOnlyHotkey == null
+                ? null
+                : (pendingModifierOnlyHotkey.IsCycle
+                    ? cycleHotkey
+                    : languageHotkeys
+                        .Where(h => string.Equals(h.Item2, pendingModifierOnlyHotkey.LayoutId, StringComparison.OrdinalIgnoreCase))
+                        .Select(h => h.Item1)
+                        .FirstOrDefault());
+
+            return pendingHotkey == null ||
+                   (pendingHotkey.Modifiers & pressedModifier) != pressedModifier;
+        }
+
+        private static HotkeyModifiers GetModifierForKey(Keys key)
+        {
+            if (key == Keys.ControlKey) return HotkeyModifiers.Control;
+            if (key == Keys.ShiftKey) return HotkeyModifiers.Shift;
+            if (key == Keys.Menu) return HotkeyModifiers.Alt;
+            if (key == Keys.LWin || key == Keys.RWin) return HotkeyModifiers.Win;
+            return HotkeyModifiers.None;
         }
 
         private HotkeyModifiers GetCurrentModifiers()
@@ -187,6 +265,15 @@ namespace LanguageSwitcher
             }
         }
 
+        private void OnModifierOnlyHotkeyArmed(HotkeyPressedEventArgs args)
+        {
+            var handler = ModifierOnlyHotkeyArmed;
+            if (handler != null)
+            {
+                handler(this, args);
+            }
+        }
+
         private void OnHotkeyReleased()
         {
             var handler = HotkeyReleased;
@@ -202,6 +289,15 @@ namespace LanguageSwitcher
             if (key == Keys.LShiftKey || key == Keys.RShiftKey || key == Keys.ShiftKey) return Keys.ShiftKey;
             if (key == Keys.LMenu || key == Keys.RMenu || key == Keys.Menu) return Keys.Menu;
             return key;
+        }
+
+        private static bool IsModifierKey(Keys key)
+        {
+            return key == Keys.ControlKey ||
+                   key == Keys.ShiftKey ||
+                   key == Keys.Menu ||
+                   key == Keys.LWin ||
+                   key == Keys.RWin;
         }
 
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);

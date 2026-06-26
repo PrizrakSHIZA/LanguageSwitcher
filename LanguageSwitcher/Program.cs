@@ -31,12 +31,15 @@ namespace LanguageSwitcher
         private int activeLanguageIndex = -1;
         private string pendingFallbackLayoutId;
         private int pendingFallbackLanguageIndex = -1;
+        private int armedModifierOnlyCycleBaseIndex = -1;
+        private bool handlingReleasedModifierOnlyHotkey;
 
         public TrayApplicationContext()
         {
             layoutService = new KeyboardLayoutService();
             hotkeyManager = new GlobalHotkeyManager();
             hotkeyManager.HotkeyPressed += OnHotkeyPressed;
+            hotkeyManager.ModifierOnlyHotkeyArmed += OnModifierOnlyHotkeyArmed;
             hotkeyManager.HotkeyReleased += OnHotkeyReleased;
 
             LoadSettings();
@@ -76,17 +79,40 @@ namespace LanguageSwitcher
 
         private void OnHotkeyPressed(object sender, HotkeyPressedEventArgs e)
         {
-            if (e.IsCycle)
+            handlingReleasedModifierOnlyHotkey = e.IsModifierOnly;
+            try
             {
-                e.Handled = SwitchToNextEnabledLanguage();
+                if (e.IsCycle)
+                {
+                    e.Handled = SwitchToNextEnabledLanguage(e.IsModifierOnly);
+                }
+                else
+                {
+                    e.Handled = ActivateLanguage(e.LayoutId);
+                }
             }
-            else
+            finally
             {
-                e.Handled = ActivateLanguage(e.LayoutId);
+                handlingReleasedModifierOnlyHotkey = false;
             }
         }
 
-        private bool SwitchToNextEnabledLanguage()
+        private void OnModifierOnlyHotkeyArmed(object sender, HotkeyPressedEventArgs e)
+        {
+            if (!e.IsCycle)
+            {
+                return;
+            }
+
+            List<LanguageSetting> enabledLanguages = settings.Languages.Where(l => l.Enabled).ToList();
+            armedModifierOnlyCycleBaseIndex = GetCurrentEnabledLanguageIndex(enabledLanguages);
+            if (armedModifierOnlyCycleBaseIndex < 0)
+            {
+                armedModifierOnlyCycleBaseIndex = activeLanguageIndex;
+            }
+        }
+
+        private bool SwitchToNextEnabledLanguage(bool useArmedBaseIndex)
         {
             List<LanguageSetting> enabledLanguages = settings.Languages.Where(l => l.Enabled).ToList();
             if (enabledLanguages.Count == 0)
@@ -94,7 +120,10 @@ namespace LanguageSwitcher
                 return false;
             }
 
-            int currentLanguageIndex = GetCurrentEnabledLanguageIndex(enabledLanguages);
+            int currentLanguageIndex = useArmedBaseIndex
+                ? armedModifierOnlyCycleBaseIndex
+                : GetCurrentEnabledLanguageIndex(enabledLanguages);
+
             int nextLanguageIndex = currentLanguageIndex >= 0
                 ? currentLanguageIndex + 1
                 : activeLanguageIndex + 1;
@@ -106,10 +135,12 @@ namespace LanguageSwitcher
 
             if (!ActivateLanguage(enabledLanguages[nextLanguageIndex].LayoutId, nextLanguageIndex))
             {
+                armedModifierOnlyCycleBaseIndex = -1;
                 return false;
             }
 
             activeLanguageIndex = nextLanguageIndex;
+            armedModifierOnlyCycleBaseIndex = -1;
             return true;
         }
 
@@ -123,6 +154,12 @@ namespace LanguageSwitcher
             if (layoutService.GetActiveForegroundLanguageId() == null)
             {
                 return false;
+            }
+
+            if (handlingReleasedModifierOnlyHotkey)
+            {
+                BeginInvokeFallback(layoutId, languageIndex);
+                return true;
             }
 
             pendingFallbackLayoutId = layoutId;
